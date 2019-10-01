@@ -4,8 +4,8 @@ use node::Node;
 pub mod main_info;
 use main_info::MainInfo;
 
-pub mod osmtosql;
-use osmtosql::Arguments;
+pub mod argument;
+use argument::Arguments;
 
 use std::env;
 // use quick_xml::Reader;
@@ -14,11 +14,9 @@ fn main() {
 
     let args : Vec<_> = env::args().collect();
 
-    Arguments::parse_args(args);
+    let formated_arg = Arguments::parse_args(args);
 
-    println!("Hello, world!");
-
-    // Reader::from_file()
+    // let xml = Reader::from_file(formated_arg.input_file);
 
     let node1 = Node{
         lat:23232.434,
@@ -35,6 +33,7 @@ fn main() {
         }
     };
 
+    println!("{:?}",formated_arg.input_file);
     println!("{:?}", node1.lat);
 
 }
