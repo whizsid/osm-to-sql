@@ -20,9 +20,6 @@ pub struct Arguments {
     // If you want to export all tables to a single SQL file, use output_dir parameter
     pub output_dir: String,
 
-    // All 9 tables dump to this sql file if you use this parameter.
-    pub output_file: String,
-
     // Maximum rows per one insert query.
     pub maximum_rows_per_query: i32
 }
@@ -33,7 +30,6 @@ impl Default for Arguments {
             input_file:String::from(""),
             varchar_length: 255,
             output_dir:String::from(""),
-            output_file: String::from(""),
             maximum_rows_per_query: 4000
         }
     }
@@ -55,7 +51,6 @@ impl Arguments {
                 "i"=> formated_args.input_file = arg.clone(),
                 "l"=> formated_args.varchar_length = arg.clone().parse().unwrap(),
                 "d"=> formated_args.output_dir = arg.clone(),
-                "f"=> formated_args.output_file = arg.clone(),
                 "r"=> formated_args.maximum_rows_per_query = arg.clone().parse().unwrap(),
                 _=> {},
             }
@@ -67,24 +62,16 @@ impl Arguments {
             show_arguments_error(String::from("Please check the output directory is exist."));
         }
 
-        if formated_args.output_file!= empty_string && !Path::new(&formated_args.output_file).exists() {
-            show_arguments_error(String::from("Please check the output file is exists."));
-        }
-
-        if formated_args.output_file==empty_string && formated_args.output_dir == empty_string {
-            show_arguments_error(String::from("One of output file or outpur directory argument is required."));
-        }
-
-        if formated_args.output_file!= empty_string && formated_args.output_dir != empty_string {
-            show_arguments_error(String::from("Only one argument is required from output file and output directory."));
+        if  formated_args.output_dir == empty_string {
+            show_arguments_error(String::from("Output directory is required."));
         }
 
         if formated_args.input_file == empty_string {
             show_arguments_error(String::from("Input file argument is required."));
         }
 
-        if Path::new(&formated_args.input_file).exists() {
-            show_arguments_error(String::from("Input file path is already exists!"));
+        if !Path::new(&formated_args.input_file).exists() {
+            show_arguments_error(String::from("Input file path is not exists!"));
         }
 
         return formated_args;
