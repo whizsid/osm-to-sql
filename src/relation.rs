@@ -9,3 +9,12 @@ pub struct Relation {
     pub members: Vec<Member>,
     pub main_info: crate::main_info::MainInfo
 }
+
+impl Default for Relation {
+    fn default()->Relation {
+        Relation {
+            members: vec![],
+            main_info: crate::main_info::MainInfo { .. Default::default()}
+        }
+    }
+}

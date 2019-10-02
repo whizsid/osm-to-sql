@@ -1,14 +1,23 @@
 pub mod node;
 use node::Node;
 
+pub mod way;
+use way::Way;
+
+pub mod relation;
+use relation::Relation;
+
 pub mod main_info;
 use main_info::MainInfo;
+use main_info::Attr;
+// use main_info::Tag;
 
 pub mod argument;
 use argument::Arguments;
 
 use quick_xml::events::Event;
 use quick_xml::Reader;
+
 use std::env;
 use std::path::Path;
 
@@ -21,22 +30,64 @@ fn main() {
 
     // let mut count = 0;
     let mut buf = Vec::new();
-    // The `Reader` does not implement `Iterator` because it outputs borrowed data (`Cow`s)
     match result {
-        Ok(mut reader) => loop {
-            match reader.read_event(&mut buf) {
-                Ok(Event::Start(e)) => match e.name() {
-                    b"node" => println!(
-                        "attributes values: {:?}",
-                        e.attributes().map(|a| a.unwrap().value).collect::<Vec<_>>()
-                    ),
+        Ok(mut reader) =>{ 
+            // Self closing tags
+            reader.expand_empty_elements(true);
+
+            loop {
+                match reader.read_event(&mut buf) {
+                    Ok(Event::Start(e)) => match e.name() {
+                        b"node" => {
+                            let mut node:Node = Node {..Default::default()};
+
+                            e.attributes().for_each(|a| match a {
+                                Ok(attr)=>{
+                                    
+                                    let formated_attr = Attr::from_quick_xml(attr);
+                                    let value = formated_attr.value.clone();
+                                    let name = formated_attr.name.clone();
+
+                                    if !node.main_info.set_attribute(formated_attr) {
+                                        match name.as_ref() {
+                                            "lat"=> node.lat = value.parse::<f32>().unwrap(),
+                                            "lon"=> node.lng = value.parse::<f32>().unwrap(),
+                                            _=>(),
+                                        }
+                                    }
+                                },
+                                Err(e)=>panic!("{:?}",e)
+                            });
+                        },
+                        b"way"=>{
+                            let mut way:Way = Way {..Default::default()};
+
+                            e.attributes().for_each(|a| match a {
+                                Ok(attr)=>{
+                                    way.main_info.set_attribute(Attr::from_quick_xml(attr));
+                                },
+                                Err(e)=>panic!("{:?}",e)
+                            });
+                        },
+                        b"relation"=>{
+                            let mut relation:Relation = Relation {..Default::default()};
+
+                            e.attributes().for_each(|a| match a {
+                                Ok(attr)=>{
+                                    relation.main_info.set_attribute(Attr::from_quick_xml(attr));
+                                },
+                                Err(e)=>panic!("{:?}",e)
+                            });
+
+                        },
+                        _ => (),
+                    },
+                    Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+                    Ok(Event::Eof) => break,
                     _ => (),
-                },
-                Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
-                Ok(Event::Eof) => break,
-                _ => (),
+                }
+                buf.clear();
             }
-            buf.clear();
         },
         Err(e) => panic!("Invalid file :- {:?}", e),
     }
