@@ -21,12 +21,20 @@ use quick_xml::Reader;
 use std::env;
 use std::path::Path;
 
+pub mod sql_file;
+use sql_file::NodeFile;
+
 fn main() {
+
     let args: Vec<_> = env::args().collect();
 
     let formated_arg = Arguments::parse_args(args);
 
     let result = Reader::from_file(&Path::new(&formated_arg.input_file));
+
+    let nodes_table = NodeFile {..NodeFile::new(formated_arg.output_dir,formated_arg.maximum_rows_per_query)};
+
+    println!("One file is created:- {:?}",nodes_table.sql.rows);
 
     // let mut count = 0;
     let mut buf = Vec::new();
