@@ -6,7 +6,7 @@ version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "osm-to-mysql"
+name = "osm-to-sql"
 version = "0.1.0"
 dependencies = [
  "quick-xml 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -21,7 +21,9 @@ pub struct Arguments {
     pub output_dir: String,
 
     // Maximum rows per one insert query.
-    pub maximum_rows_per_query: i32
+    pub maximum_rows_per_query: i32,
+
+    pub help: bool
 }
 
 impl Default for Arguments {
@@ -30,13 +32,29 @@ impl Default for Arguments {
             input_file:String::from(""),
             varchar_length: 255,
             output_dir:String::from(""),
-            maximum_rows_per_query: 4000
+            maximum_rows_per_query: 4000,
+            help: false
         }
     }
 }
 
+fn get_arguments_help()->String{
+    String::from("
+    Usage:
+        osm-to-sql [OPTIONS] -i <xml_file_path.xml> -d <output_directory>
+
+    OPTIONS:
+        -i        Input open street map file in XML format.
+        -l        Default varchar length to using in table creation. [250]
+        -d        Output directory to save output sql files.
+        -r        Maximum rows per one SQL insert query. [400]
+        -h        Prints help information
+    ")
+}
+
 fn show_arguments_error(e:String){
-    panic!("Invalid Argument(s) : {}",e.clone());
+    panic!("Invalid Argument(s) : {}
+    {}",e.clone(),get_arguments_help());
 }
 
 impl Arguments {
@@ -52,10 +70,19 @@ impl Arguments {
                 "l"=> formated_args.varchar_length = arg.clone().parse().unwrap(),
                 "d"=> formated_args.output_dir = arg.clone(),
                 "r"=> formated_args.maximum_rows_per_query = arg.clone().parse().unwrap(),
+                "h"=> formated_args.help = true,
                 _=> {},
             }
 
+            if arg=="h" {
+                formated_args.help = true;
+            }
+
             previous_arg = arg;
+        }
+
+        if formated_args.help {
+            panic!("{}",get_arguments_help());
         }
 
         if formated_args.output_dir!=empty_string && !Path::new(&formated_args.output_dir).exists() {

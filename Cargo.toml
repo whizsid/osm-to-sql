@@ -1,8 +1,15 @@
 [package]
-name = "osm-to-mysql"
+name = "osm-to-sql"
 version = "0.1.0"
 authors = ["WhizSid <whizsid@aol.com>"]
 edition = "2018"
+license = "MIT"
+description = "A tool to convert open street map XML data to SQL files."
+readme = "README.md"
+homepage = "https://github.com/whizsid/osm-to-sql"
+repository = "https://github.com/whizsid/osm-to-sql"
+keywords = ["cli", "osm", "open","street","map","sql","longitude","latitude","waypoint","converter"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 quick-xml = "0.16.1"
