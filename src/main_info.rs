@@ -8,8 +8,7 @@ pub struct MainInfo {
     pub timestamp: String,
     pub user: String,
     pub uid: i32,
-    pub visible: bool,
-    pub tags: Vec<UsedTag>,
+    pub visible: bool
 }
 
 impl Default for MainInfo {
@@ -21,8 +20,7 @@ impl Default for MainInfo {
             timestamp: String::from("2011-01-12T14:23:49Z"),
             user: String::from("anonymous"),
             uid: 0000,
-            visible: true,
-            tags: vec!()
+            visible: true
         }
     }
 }
@@ -95,4 +93,6 @@ pub struct Tag {
 pub struct UsedTag {
     pub tag: Tag,
     pub value: String,
+    pub ref_id: i32,
+    pub ref_type:&'static str
 }

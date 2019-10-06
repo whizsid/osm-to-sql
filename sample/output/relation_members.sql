@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS relation_members;
+CREATE TABLE relation_members (rm_id INTEGER AUTO_INCREMENT,
+                relation_id INTEGER,node_id INTEGER DEFAULT NULL,way_id INTEGER DEFAULT NULL,role VARCHAR (150),CONSTRAINT relation_members_pk PRIMARY KEY(rm_id),CONSTRAINT  relation_members_nodes_fk FOREIGN KEY(node_id) REFERENCES nodes(id),CONSTRAINT  relation_members_ways_fk FOREIGN KEY(way_id) REFERENCES ways(id),CONSTRAINT  relation_members_relations_fk FOREIGN KEY(relation_id) REFERENCES relations(id));
+INSERT INTO relation_members (relation_id,node_id,way_id,role) VALUES ("56688",294942404,NULL,"") , ("56688",364933006,NULL,"") , ("56688",NULL,4579143,"") , ("56688",249673494,NULL,"") 

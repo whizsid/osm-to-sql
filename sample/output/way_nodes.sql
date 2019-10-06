@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS way_nodes;
+CREATE TABLE way_nodes (way_id INTEGER,node_id INTEGER,CONSTRAINT way_nodes_pk PRIMARY KEY(way_id,node_id),CONSTRAINT  way_nodes_nodes_fk FOREIGN KEY(node_id) REFERENCES nodes(id),CONSTRAINT  way_nodes_ways_fk FOREIGN KEY(way_id) REFERENCES ways(id));
+INSERT INTO way_nodes (node_id,way_id) VALUES ("292403538","26659127") , ("298884289","26659127") , ("261728686","26659127") 
