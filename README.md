@@ -24,7 +24,7 @@ OPTIONS:
 
 ## Table mappings
 
-All tables have foreign key constrations. And please import with the following order when you importing to your database server.
+All tables have foreign key constraints and all tables will creating automatically with these SQL files. And please import with the following order when you importing to your database server.
 
 ```
     1.nodes
@@ -58,6 +58,8 @@ All tables have foreign key constrations. And please import with the following o
             -- way_id = ways(id)
  
 ```
+
+Sample output files in the `sample/output` folder.
 
 ## Contirbutions
 
