@@ -61,4 +61,4 @@ All tables have foreign key constrations. And please import with the following o
 
 ## Contirbutions
 
-All contibutions and issued are welcome. Please help me to make this tool faster and powerfull.
+All contibutions and issues are welcome. Please help me to make this tool faster and powerfull.
