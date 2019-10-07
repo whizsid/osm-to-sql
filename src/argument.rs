@@ -1,5 +1,7 @@
 use std::path::Path;
+use std::process;
 
+#[derive(Debug, Clone)]
 pub struct Arguments {
     // XML file downloaded from geofabrick
     pub input_file: String,
@@ -40,21 +42,22 @@ impl Default for Arguments {
 
 fn get_arguments_help()->String{
     String::from("
-    Usage:
-        osm-to-sql [OPTIONS] -i <xml_file_path.xml> -d <output_directory>
+Usage:
+    osm-to-sql [OPTIONS] -i <xml_file_path.xml> -d <output_directory>
 
-    OPTIONS:
-        -i        Input open street map file in XML format.
-        -l        Default varchar length to using in table creation. [250]
-        -d        Output directory to save output sql files.
-        -r        Maximum rows per one SQL insert query. [400]
-        -h        Prints help information
+OPTIONS:
+    -i        Input open street map file in XML format.
+    -l        Default varchar length to using in table creation. [250]
+    -d        Output directory to save output sql files.
+    -r        Maximum rows per one SQL insert query. [400]
+    -h        Prints help information
     ")
 }
 
 fn show_arguments_error(e:String){
-    panic!("Invalid Argument(s) : {}
+    eprintln!("Invalid Argument(s) : {}
     {}",e.clone(),get_arguments_help());
+    process::exit(128);
 }
 
 impl Arguments {
@@ -66,15 +69,15 @@ impl Arguments {
 
         for arg in args {
             match previous_arg.as_ref() {
-                "i"=> formated_args.input_file = arg.clone(),
-                "l"=> formated_args.varchar_length = arg.clone().parse().unwrap(),
-                "d"=> formated_args.output_dir = arg.clone(),
-                "r"=> formated_args.maximum_rows_per_query = arg.clone().parse().unwrap(),
-                "h"=> formated_args.help = true,
+                "-i"=> formated_args.input_file = arg.clone(),
+                "-l"=> formated_args.varchar_length = arg.clone().parse().unwrap(),
+                "-d"=> formated_args.output_dir = arg.clone(),
+                "-r"=> formated_args.maximum_rows_per_query = arg.clone().parse().unwrap(),
+                "-h"=> formated_args.help = true,
                 _=> {},
             }
 
-            if arg=="h" {
+            if arg=="-h" {
                 formated_args.help = true;
             }
 
@@ -82,7 +85,8 @@ impl Arguments {
         }
 
         if formated_args.help {
-            panic!("{}",get_arguments_help());
+            println!("{}",get_arguments_help());
+            process::exit(0);
         }
 
         if formated_args.output_dir!=empty_string && !Path::new(&formated_args.output_dir).exists() {

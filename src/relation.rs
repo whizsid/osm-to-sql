@@ -13,7 +13,7 @@ impl Default for Relation {
 
 pub struct RelationMember {
     pub ref_type: String,
-    pub ref_id: i32,
-    pub relation_id: i32,
+    pub ref_id: i64,
+    pub relation_id: i64,
     pub role: String
 }

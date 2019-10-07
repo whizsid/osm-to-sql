@@ -10,12 +10,14 @@ use crate::main_info::UsedTag;
 use crate::main_info::MainInfo;
 use crate::way::WayNode;
 use crate::relation::RelationMember;
+use crate::argument::Arguments;
 
 pub struct SqlFile {
     pub table_name: String,
     pub rows: i32,
     pub sets: i32,
     pub maximum_rows_per_query: i32,
+    pub maximum_varchar_length: i32,
     pub last_set_rows: i32,
     pub file: File,
 }
@@ -37,8 +39,8 @@ fn create_file(output_dir: String, name: &str)->File {
 
 impl SqlFile {
     //Node Tables
-    pub fn new_node_file(output_dir: String, maximum_rows_per_query: i32) -> SqlFile {
-        let file = create_file(output_dir, "nodes.sql");
+    pub fn new_node_file(arguments:Arguments) -> SqlFile {
+        let file = create_file(arguments.output_dir.clone(), "nodes.sql");
 
         if let Err(e) = write!(&file, "DROP TABLE IF EXISTS nodes;") {
             drop(file);
@@ -48,17 +50,19 @@ impl SqlFile {
         if let Err(e) = write!(
             &file,
             "\nCREATE TABLE nodes (\
-             id INTEGER,\
+             id BIGINT,\
              lat DECIMAL(10,8),\
              lng DECIMAL(10,8),\
              version INTEGER,\
              changeset INTEGER,\
-             user VARCHAR(150),\
+             user VARCHAR({}),\
              uid INTEGER,\
              visible TINYINT(2),\
-             date_time VARCHAR(150),\
+             date_time VARCHAR({}),\
              CONSTRAINT nodes_pk PRIMARY KEY(id)\
-             )"
+             )",
+             arguments.varchar_length,
+             arguments.varchar_length
         ) {
             drop(file);
             panic!("Could not to write to the file: {:?}", e);
@@ -68,9 +72,10 @@ impl SqlFile {
             table_name: String::from("nodes"),
             rows: 0,
             sets: 0,
-            maximum_rows_per_query: maximum_rows_per_query,
+            maximum_rows_per_query: arguments.maximum_rows_per_query,
+            maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
-            file: file,
+            file: file
         };
     }
 
@@ -125,8 +130,8 @@ impl SqlFile {
     }
 
     //Way/Relation Tables
-    pub fn new_main_file(table_name:&str,output_dir: String, maximum_rows_per_query: i32) -> SqlFile {
-        let file = create_file(output_dir, &format!("{}{}",table_name,".sql"));
+    pub fn new_main_file(arguments:Arguments,table_name:&str) -> SqlFile {
+        let file = create_file(arguments.output_dir, &format!("{}{}",table_name,".sql"));
 
         if let Err(e) = write!(&file, "DROP TABLE IF EXISTS {};",table_name) {
             drop(file);
@@ -136,16 +141,18 @@ impl SqlFile {
         if let Err(e) = write!(
             &file,
             "\nCREATE TABLE {} (\
-             id INTEGER,\
+             id BIGINT,\
              version INTEGER,\
              changeset INTEGER,\
-             user VARCHAR(150),\
+             user VARCHAR({}),\
              uid INTEGER,\
              visible TINYINT(2),\
-             date_time VARCHAR(150),\
+             date_time VARCHAR({}),\
              CONSTRAINT {}_pk PRIMARY KEY(id)\
              )",
              table_name,
+             arguments.varchar_length,
+             arguments.varchar_length,
              table_name
         ) {
             drop(file);
@@ -156,7 +163,8 @@ impl SqlFile {
             table_name: String::from(table_name),
             rows: 0,
             sets: 0,
-            maximum_rows_per_query: maximum_rows_per_query,
+            maximum_rows_per_query: arguments.maximum_rows_per_query,
+            maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
         };
@@ -210,8 +218,8 @@ impl SqlFile {
     }
 
     // Tags Table
-    pub fn new_tag_file(output_dir: String, maximum_rows_per_query: i32) -> SqlFile {
-        let file = create_file(output_dir,"tags.sql");
+    pub fn new_tag_file(arguments:Arguments) -> SqlFile {
+        let file = create_file(arguments.output_dir.clone(),"tags.sql");
 
         if let Err(e) = write!(&file, "DROP TABLE IF EXISTS tags;") {
             drop(file);
@@ -222,9 +230,10 @@ impl SqlFile {
             &file,
             "\nCREATE TABLE tags (\
                 id INTEGER,\
-                name VARCHAR(150),\
+                name VARCHAR({}),\
                 CONSTRAINT tags_pk PRIMARY KEY(id)\
-             )"
+             )",
+             arguments.varchar_length
         ) {
             drop(file);
             panic!("Could not to write to the file: {:?}", e);
@@ -234,7 +243,8 @@ impl SqlFile {
             table_name: String::from("tags"),
             rows: 0,
             sets: 0,
-            maximum_rows_per_query: maximum_rows_per_query,
+            maximum_rows_per_query: arguments.maximum_rows_per_query,
+            maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
         };
@@ -277,8 +287,8 @@ impl SqlFile {
     }
 
     // Node, Members, Relations has tags
-    pub fn new_ref_tags_file(output_dir: String, maximum_rows_per_query: i32) -> SqlFile {
-        let file = create_file(output_dir,"ref_tags.sql");
+    pub fn new_ref_tags_file(arguments:Arguments) -> SqlFile {
+        let file = create_file(arguments.output_dir,"ref_tags.sql");
 
         if let Err(e) = write!(&file, "DROP TABLE IF EXISTS ref_tags;") {
             drop(file);
@@ -288,18 +298,19 @@ impl SqlFile {
         if let Err(e) = write!(
             &file,
             "\nCREATE TABLE ref_tags (\
-                rt_id INTEGER AUTO_INCREMENT,
+                rt_id BIGINT AUTO_INCREMENT,\
                 tag_id INTEGER,\
-                node_id INTEGER DEFAULT NULL,\
-                relation_id INTEGER DEFAULT NULL,\
-                way_id INTEGER DEFAULT NULL,\
-                value VARCHAR(250),\
+                node_id BIGINT DEFAULT NULL,\
+                relation_id BIGINT DEFAULT NULL,\
+                way_id BIGINT DEFAULT NULL,\
+                value VARCHAR({}),\
                 CONSTRAINT ref_tags_pk PRIMARY KEY(rt_id),\
                 CONSTRAINT  ref_tags_tags_fk FOREIGN KEY(tag_id) REFERENCES tags(id),\
                 CONSTRAINT  ref_tags_nodes_fk FOREIGN KEY(node_id) REFERENCES nodes(id),\
                 CONSTRAINT  ref_tags_relations_fk FOREIGN KEY(relation_id) REFERENCES relations(id),\
                 CONSTRAINT  ref_tags_ways_fk FOREIGN KEY(way_id) REFERENCES ways(id)\
-             )"
+             )",
+             arguments.varchar_length
         ) {
             drop(file);
             panic!("Could not to write to the file: {:?}", e);
@@ -309,7 +320,8 @@ impl SqlFile {
             table_name: String::from("tags"),
             rows: 0,
             sets: 0,
-            maximum_rows_per_query: maximum_rows_per_query,
+            maximum_rows_per_query: arguments.maximum_rows_per_query,
+            maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
         };
@@ -358,8 +370,8 @@ impl SqlFile {
     }
 
     // Ways has multiple nodes
-    pub fn new_way_nodes_file(output_dir: String, maximum_rows_per_query: i32) -> SqlFile {
-        let file = create_file(output_dir,"way_nodes.sql");
+    pub fn new_way_nodes_file(arguments:Arguments) -> SqlFile {
+        let file = create_file(arguments.output_dir,"way_nodes.sql");
 
         if let Err(e) = write!(&file, "DROP TABLE IF EXISTS way_nodes;") {
             drop(file);
@@ -369,8 +381,8 @@ impl SqlFile {
         if let Err(e) = write!(
             &file,
             "\nCREATE TABLE way_nodes (\
-                way_id INTEGER,\
-                node_id INTEGER,\
+                way_id BIGINT,\
+                node_id BIGINT,\
                 CONSTRAINT way_nodes_pk PRIMARY KEY(way_id,node_id),\
                 CONSTRAINT  way_nodes_nodes_fk FOREIGN KEY(node_id) REFERENCES nodes(id),\
                 CONSTRAINT  way_nodes_ways_fk FOREIGN KEY(way_id) REFERENCES ways(id)\
@@ -384,7 +396,8 @@ impl SqlFile {
             table_name: String::from("way_nodes"),
             rows: 0,
             sets: 0,
-            maximum_rows_per_query: maximum_rows_per_query,
+            maximum_rows_per_query: arguments.maximum_rows_per_query,
+            maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
         };
@@ -394,7 +407,7 @@ impl SqlFile {
         if self.last_set_rows >= self.maximum_rows_per_query || self.rows == 0 {
             if let Err(e) = write!(
                 self.file,
-                ";\nINSERT INTO way_nodes (\
+                ";\nINSERT IGNORE INTO way_nodes (\
                  node_id,way_id\
                  ) VALUES (\
                  \"{}\",\"{}\"\
@@ -427,8 +440,8 @@ impl SqlFile {
     }
 
     // Ways has multiple nodes
-    pub fn new_relation_members_file(output_dir: String, maximum_rows_per_query: i32) -> SqlFile {
-        let file = create_file(output_dir,"relation_members.sql");
+    pub fn new_relation_members_file(arguments:Arguments) -> SqlFile {
+        let file = create_file(arguments.output_dir,"relation_members.sql");
 
         if let Err(e) = write!(&file, "DROP TABLE IF EXISTS relation_members;") {
             drop(file);
@@ -438,16 +451,17 @@ impl SqlFile {
         if let Err(e) = write!(
             &file,
             "\nCREATE TABLE relation_members (\
-                rm_id INTEGER AUTO_INCREMENT,
-                relation_id INTEGER,\
-                node_id INTEGER DEFAULT NULL,\
-                way_id INTEGER DEFAULT NULL,\
-                role VARCHAR (150),\
+                rm_id BIGINT AUTO_INCREMENT,\
+                relation_id BIGINT,\
+                node_id BIGINT DEFAULT NULL,\
+                way_id BIGINT DEFAULT NULL,\
+                role VARCHAR ({}),\
                 CONSTRAINT relation_members_pk PRIMARY KEY(rm_id),\
                 CONSTRAINT  relation_members_nodes_fk FOREIGN KEY(node_id) REFERENCES nodes(id),\
                 CONSTRAINT  relation_members_ways_fk FOREIGN KEY(way_id) REFERENCES ways(id),\
                 CONSTRAINT  relation_members_relations_fk FOREIGN KEY(relation_id) REFERENCES relations(id)\
-             )"
+             )",
+             arguments.varchar_length
         ) {
             drop(file);
             panic!("Could not to write to the file: {:?}", e);
@@ -457,7 +471,8 @@ impl SqlFile {
             table_name: String::from("relation_members"),
             rows: 0,
             sets: 0,
-            maximum_rows_per_query: maximum_rows_per_query,
+            maximum_rows_per_query: arguments.maximum_rows_per_query,
+            maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
         };

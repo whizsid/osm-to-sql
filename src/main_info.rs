@@ -3,8 +3,8 @@ use std::str;
 
 pub struct MainInfo {
     pub changeset:i32,
-    pub id: i32,
-    pub version: i8,
+    pub id: i64,
+    pub version: i16,
     pub timestamp: String,
     pub user: String,
     pub uid: i32,
@@ -29,11 +29,11 @@ impl MainInfo {
     pub fn set_attribute(&mut self, attr:crate::main_info::Attr)->bool{
         match attr.name.as_ref() {
             "id"=>{
-                self.id = attr.value.parse::<i32>().unwrap();
+                self.id = attr.value.parse::<i64>().unwrap();
                 return true;
             } ,
             "version" => {
-                self.version = attr.value.parse::<i8>().unwrap();
+                self.version = attr.value.parse::<i16>().unwrap();
                 return true;
             },
             "changeset"=>{
@@ -93,6 +93,6 @@ pub struct Tag {
 pub struct UsedTag {
     pub tag: Tag,
     pub value: String,
-    pub ref_id: i32,
+    pub ref_id: i64,
     pub ref_type:&'static str
 }

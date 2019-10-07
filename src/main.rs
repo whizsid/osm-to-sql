@@ -35,18 +35,18 @@ fn main() {
 
     let result = Reader::from_file(&Path::new(&formated_arg.input_file));
 
-    let mut nodes_table = SqlFile {..SqlFile::new_node_file(formated_arg.output_dir.clone(),formated_arg.maximum_rows_per_query)};
-    let mut tags_table = SqlFile {..SqlFile::new_tag_file(formated_arg.output_dir.clone(),formated_arg.maximum_rows_per_query)};
-    let mut ways_table = SqlFile {..SqlFile::new_main_file("ways", formated_arg.output_dir.clone(), formated_arg.maximum_rows_per_query)};
-    let mut way_nodes_table = SqlFile {..SqlFile::new_way_nodes_file(formated_arg.output_dir.clone(),formated_arg.maximum_rows_per_query)};
-    let mut relations_table = SqlFile {..SqlFile::new_main_file("relations", formated_arg.output_dir.clone(), formated_arg.maximum_rows_per_query)};
-    let mut relation_members_table = SqlFile {..SqlFile::new_relation_members_file(formated_arg.output_dir.clone(), formated_arg.maximum_rows_per_query)};
-    let mut ref_tags_table = SqlFile {..SqlFile::new_ref_tags_file(formated_arg.output_dir.clone(), formated_arg.maximum_rows_per_query)};
+    let mut nodes_table = SqlFile {..SqlFile::new_node_file(formated_arg.clone())};
+    let mut tags_table = SqlFile {..SqlFile::new_tag_file(formated_arg.clone())};
+    let mut ways_table = SqlFile {..SqlFile::new_main_file(formated_arg.clone(),"ways")};
+    let mut way_nodes_table = SqlFile {..SqlFile::new_way_nodes_file(formated_arg.clone())};
+    let mut relations_table = SqlFile {..SqlFile::new_main_file(formated_arg.clone(),"relations")};
+    let mut relation_members_table = SqlFile {..SqlFile::new_relation_members_file(formated_arg.clone())};
+    let mut ref_tags_table = SqlFile {..SqlFile::new_ref_tags_file(formated_arg.clone())};
 
     // let mut count = 0;
     let mut buf = Vec::new();
     let mut used_tags: Vec<String> = vec![];
-    let mut last_ref_id: i32 =0;
+    let mut last_ref_id: i64 =0;
     let mut last_ref_type: &str ="node";
 
     match result {
@@ -204,7 +204,7 @@ fn main() {
 
                                             way_nodes_table.insert_to_way_nodes_file(WayNode {
                                                 way_id:last_ref_id,
-                                                node_id: attr.value.parse::<i32>().unwrap()
+                                                node_id: attr.value.parse::<i64>().unwrap()
                                             })
                                         },
                                         Err(e)=>panic!("Error reading ref attribute in nd tag: {:?}",e)
@@ -258,7 +258,7 @@ fn main() {
                                                 relation_members_table.insert_to_relation_members_file(RelationMember {
                                                     role:role,
                                                     ref_type: ref_attr.value,
-                                                    ref_id: Attr::from_quick_xml(ref_attribute).value.parse::<i32>().unwrap(),
+                                                    ref_id: Attr::from_quick_xml(ref_attribute).value.parse::<i64>().unwrap(),
                                                     relation_id: last_ref_id
                                                 })
                                             },

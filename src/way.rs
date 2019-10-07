@@ -11,6 +11,6 @@ impl Default for Way {
 }
 
 pub struct WayNode {
-    pub way_id:i32,
-    pub node_id:i32
+    pub way_id:i64,
+    pub node_id:i64
 }
