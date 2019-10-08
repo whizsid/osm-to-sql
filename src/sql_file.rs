@@ -20,6 +20,7 @@ pub struct SqlFile {
     pub maximum_varchar_length: i32,
     pub last_set_rows: i32,
     pub file: File,
+    pub insert_ignore: bool
 }
 
 fn create_file(output_dir: String, name: &str)->File {
@@ -75,7 +76,8 @@ impl SqlFile {
             maximum_rows_per_query: arguments.maximum_rows_per_query,
             maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
-            file: file
+            file: file,
+            insert_ignore: arguments.insert_ignore
         };
     }
 
@@ -167,6 +169,7 @@ impl SqlFile {
             maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
+            insert_ignore: arguments.insert_ignore
         };
     }
 
@@ -247,6 +250,7 @@ impl SqlFile {
             maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
+            insert_ignore: arguments.insert_ignore
         };
     }
 
@@ -324,6 +328,7 @@ impl SqlFile {
             maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
+            insert_ignore: arguments.insert_ignore
         };
     }
 
@@ -400,6 +405,7 @@ impl SqlFile {
             maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
+            insert_ignore: arguments.insert_ignore
         };
     }
 
@@ -407,11 +413,12 @@ impl SqlFile {
         if self.last_set_rows >= self.maximum_rows_per_query || self.rows == 0 {
             if let Err(e) = write!(
                 self.file,
-                ";\nINSERT IGNORE INTO way_nodes (\
+                ";\nINSERT{} INTO way_nodes (\
                  node_id,way_id\
                  ) VALUES (\
                  \"{}\",\"{}\"\
                  ) ",
+                if self.insert_ignore {" IGNORE"} else {""},
                 way_node.node_id,
                 way_node.way_id
             ) {
@@ -475,6 +482,7 @@ impl SqlFile {
             maximum_varchar_length: arguments.varchar_length,
             last_set_rows: 0,
             file: file,
+            insert_ignore: arguments.insert_ignore
         };
     }
 
@@ -482,11 +490,12 @@ impl SqlFile {
         if self.last_set_rows >= self.maximum_rows_per_query || self.rows == 0 {
             if let Err(e) = write!(
                 self.file,
-                ";\nINSERT IGNORE INTO relation_members (\
+                ";\nINSERT{} INTO relation_members (\
                  relation_id,node_id,way_id,role\
                  ) VALUES (\
                  \"{}\",{},{},\"{}\"\
                  ) ",
+                if self.insert_ignore {" IGNORE"} else {""},
                 relation_member.relation_id,
                 if relation_member.ref_type=="node" {relation_member.ref_id.to_string()} else {String::from("NULL")},
                 if relation_member.ref_type=="way" {relation_member.ref_id.to_string()} else {String::from("NULL")},

@@ -10,8 +10,8 @@ impl Default for Node {
             main_info: crate::main_info::MainInfo {
                 ..Default::default()
             },
-            lat: 3232.3232323,
-            lng: 232.232323232
+            lat: 0.0,
+            lng: 0.0
         }
     }
 }

@@ -25,6 +25,13 @@ pub struct Arguments {
     // Maximum rows per one insert query.
     pub maximum_rows_per_query: i32,
 
+    // Not allowing INSERT IGNORE queries.
+    // We can find some duplicate entries in OSM XML files. When we inserting these
+    // queries to our database some errors throwing and whole query is not inserting.
+    // We are using INSERT IGNORE queries by default to avoid these type of errors.
+    pub insert_ignore: bool,
+
+    // Display the help informations
     pub help: bool
 }
 
@@ -35,6 +42,7 @@ impl Default for Arguments {
             varchar_length: 255,
             output_dir:String::from(""),
             maximum_rows_per_query: 4000,
+            insert_ignore: true,
             help: false
         }
     }
@@ -51,6 +59,7 @@ OPTIONS:
     -d        Output directory to save output sql files.
     -r        Maximum rows per one SQL insert query. [400]
     -h        Prints help information
+    -g        Do not use INSERT IGNORE queries
     ")
 }
 
@@ -74,11 +83,16 @@ impl Arguments {
                 "-d"=> formated_args.output_dir = arg.clone(),
                 "-r"=> formated_args.maximum_rows_per_query = arg.clone().parse().unwrap(),
                 "-h"=> formated_args.help = true,
+                "-g"=> formated_args.insert_ignore = false,
                 _=> {},
             }
 
             if arg=="-h" {
                 formated_args.help = true;
+            }
+
+            if arg=="-g" {
+                formated_args.insert_ignore = false;
             }
 
             previous_arg = arg;

@@ -19,6 +19,7 @@ OPTIONS:
     -d        Output directory to save output sql files.
     -r        Maximum rows per one SQL insert query. [400]
     -h        Prints help information
+    -g        Do not use INSERT IGNORE queries
 
 ```
 
