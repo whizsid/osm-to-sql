@@ -482,7 +482,7 @@ impl SqlFile {
         if self.last_set_rows >= self.maximum_rows_per_query || self.rows == 0 {
             if let Err(e) = write!(
                 self.file,
-                ";\nINSERT INTO relation_members (\
+                ";\nINSERT IGNORE INTO relation_members (\
                  relation_id,node_id,way_id,role\
                  ) VALUES (\
                  \"{}\",{},{},\"{}\"\
