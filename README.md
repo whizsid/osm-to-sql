@@ -1,8 +1,18 @@
 # osm-to-sql
 
 ---
+![AUR version](https://img.shields.io/aur/version/osm-to-sql)
+![GitHub](https://img.shields.io/github/license/whizsid/osm-to-sql)
+
+---
 
 Simple OSM XML data to SQL converter command. This command will create 7 SQL files with foreign key constraints. You can use these SQL files with MySQL/ SQLite or any other SQL server.
+
+## Installation
+
+Currently only supporting to arch linux based distros
+
+### Arch Linux
 
 ## Usage
 
