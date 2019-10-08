@@ -15,6 +15,11 @@ Currently only supporting to arch linux based distros
 
 ### Arch Linux
 
+```
+yaourt -S osm-to-sql
+
+```
+
 ## Usage
 
 This is the default help menu for the command line tool.
