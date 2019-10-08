@@ -3,6 +3,7 @@
 ---
 ![AUR version](https://img.shields.io/aur/version/osm-to-sql)
 ![GitHub](https://img.shields.io/github/license/whizsid/osm-to-sql)
+![Travis CI](https://travis-ci.org/whizsid/osm-to-sql.svg?branch=master)
 
 ---
 
