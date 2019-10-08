@@ -9,10 +9,9 @@ url="https://github.com/whizsid/osm-to-sql"
 license=('MIT')
 
 build() {
-    return 0
+    cargo build --release --locked
 }
 
 package() {
-    cd $srcdir
-    cargo install --root="$pkgdir" --git=https://github.com/whizsid/osm-to-sql
+    install -Dm 755 "$srcdir/../target/release/${pkgname}" -t "${pkgdir}/usr/bin"
 }
