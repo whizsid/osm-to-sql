@@ -13,11 +13,25 @@ Simple OSM XML data to SQL converter command. This command will create 7 SQL fil
 
 Currently only supporting to arch linux based distros
 
-### Arch Linux
+### Arch Based Distros
+
+Install it from arch user repository.
 
 ```
 yaourt -S osm-to-sql
 ```
+
+### Debian Based Distros
+
+Download the `.deb` file from [here](https://github.com/whizsid/osm-to-sql/releases/download/0.1.1/osm-to-sql_0.1.1_amd64.deb) and install it using `dpkg`.
+
+```
+dpkg -i ./osm-to-sql_0.1.1_amd64.deb
+```
+
+## Other Distros
+
+Download the standalone binary file from [here](https://github.com/whizsid/osm-to-sql/releases/download/0.1.1/osm-to-sql) and run it.
 
 ## Usage
 

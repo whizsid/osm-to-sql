@@ -1,0 +1,15 @@
+Package: osm-to-sql
+Source: osm-to-sql
+Section: misc
+Version: 0.1.0
+Architecture: any
+Vcs-Browser: https://github.com/whizsid/osm-to-sql
+Vcs-Git: https://github.com/whizsid/osm-to-sql
+Homepage: https://github.com/whizsid/osm-to-sql
+Priority: optional
+Standards-Version: 3.9.4
+Maintainer: WhizSid <whizsid@aol.com>
+Installed-Size: 373
+Build-Depends: rustc , cargo
+Description: A tool to convert open street map XML data to SQL files.
+ A command line tool to convert open street map data to SQL files.
