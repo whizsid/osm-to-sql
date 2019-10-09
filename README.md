@@ -11,7 +11,7 @@ Simple OSM XML data to SQL converter command. This command will create 7 SQL fil
 
 ## Installation
 
-Currently only supporting to arch linux based distros
+Currently only supporting to linux distros.
 
 ### Arch Based Distros
 
