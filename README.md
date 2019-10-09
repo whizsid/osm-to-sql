@@ -17,7 +17,6 @@ Currently only supporting to arch linux based distros
 
 ```
 yaourt -S osm-to-sql
-
 ```
 
 ## Usage

@@ -13,3 +13,11 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 quick-xml = "0.16.1"
+
+[package.metadata.deb]
+maintainer = "WhizSid <whizsid@aol.com>"
+copyright = "2019, WhizSid <whizsid@aol.com>"
+license-file = ["LICENSE"]
+depends = "$auto"
+extended-description = """\
+A command line tool to convert open street map data to SQL files."""
