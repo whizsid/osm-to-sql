@@ -462,11 +462,13 @@ impl SqlFile {
                 relation_id BIGINT,\
                 node_id BIGINT DEFAULT NULL,\
                 way_id BIGINT DEFAULT NULL,\
+                sub_relation_id BIGINT DEFAULT NULL,\
                 role VARCHAR ({}),\
                 CONSTRAINT relation_members_pk PRIMARY KEY(rm_id),\
                 CONSTRAINT  relation_members_nodes_fk FOREIGN KEY(node_id) REFERENCES nodes(id),\
                 CONSTRAINT  relation_members_ways_fk FOREIGN KEY(way_id) REFERENCES ways(id),\
-                CONSTRAINT  relation_members_relations_fk FOREIGN KEY(relation_id) REFERENCES relations(id)\
+                CONSTRAINT  relation_members_relations_fk FOREIGN KEY(relation_id) REFERENCES relations(id),\
+                CONSTRAINT  relation_members_sub_relations_fk FOREIGN KEY(sub_relation_id) REFERENCES relations(id)\
              )",
              arguments.varchar_length
         ) {
@@ -491,14 +493,15 @@ impl SqlFile {
             if let Err(e) = write!(
                 self.file,
                 ";\nINSERT{} INTO relation_members (\
-                 relation_id,node_id,way_id,role\
+                 relation_id,node_id,way_id,sub_relation_id,role\
                  ) VALUES (\
-                 \"{}\",{},{},\"{}\"\
+                 \"{}\",{},{},{},\"{}\"\
                  ) ",
                 if self.insert_ignore {" IGNORE"} else {""},
                 relation_member.relation_id,
                 if relation_member.ref_type=="node" {relation_member.ref_id.to_string()} else {String::from("NULL")},
                 if relation_member.ref_type=="way" {relation_member.ref_id.to_string()} else {String::from("NULL")},
+                if relation_member.ref_type=="relation" {relation_member.ref_id.to_string()} else {String::from("NULL")},
                 relation_member.role
             ) {
                 drop(&self.file);
@@ -510,11 +513,12 @@ impl SqlFile {
             if let Err(e) = write!(
                 self.file,
                 ", (\
-                 \"{}\",{},{},\"{}\"\
+                 \"{}\",{},{},{},\"{}\"\
                  ) ",
                 relation_member.relation_id,
                 if relation_member.ref_type=="node" {relation_member.ref_id.to_string()} else {String::from("NULL")},
                 if relation_member.ref_type=="way" {relation_member.ref_id.to_string()} else {String::from("NULL")},
+                if relation_member.ref_type=="relation" {relation_member.ref_id.to_string()} else {String::from("NULL")},
                 relation_member.role
             ) {
                 drop(&self.file);

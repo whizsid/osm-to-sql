@@ -1,6 +1,6 @@
 [package]
 name = "osm-to-sql"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["WhizSid <whizsid@aol.com>"]
 edition = "2018"
 license = "MIT"
@@ -21,3 +21,6 @@ license-file = ["LICENSE"]
 depends = "$auto"
 extended-description = """\
 A command line tool to convert open street map data to SQL files."""
+changelog= "debian/changelog"
+section = "utility"
+priority = "optional"

@@ -76,6 +76,7 @@ All tables have foreign key constraints and all tables will creating automatical
             -- relation_id = relations(id)
             -- node_id = nodes(id)
             -- way_id = ways(id)
+            -- sub_relation_id = relations(id)
 
     6.tags
         id,name

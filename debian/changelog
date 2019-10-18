@@ -3,3 +3,9 @@ osm-to-sql (0.1.1-1) UNRELEASED; urgency=low
   * Initial release.
 
  -- WhizSid <whizsid@aol.com>  Wed, 09 Oct 2019 23:25:32 +0000
+
+osm-to-sql (0.1.2-1) RELEASED; urgency=low
+
+  * Fixed bus in sub relation id.
+
+ -- WhizSid <whizsid@aol.com>  Sat, 19 Oct 2019 01:01:32 +0000
