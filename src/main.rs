@@ -5,11 +5,12 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::thread;
-pub mod models;
 use clap::{App, Arg};
-use models::*;
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
+
+pub mod models;
+use models::*;
 
 enum ThreadSignal<T: Model> {
     Write(T),
@@ -18,8 +19,8 @@ enum ThreadSignal<T: Model> {
 
 #[derive(Clone)]
 pub struct Arguments {
-    pub input: &'static str,
-    pub output: &'static str,
+    pub input: String,
+    pub output: String,
     pub maximum_rows: i32,
     pub no_ignore: bool,
 }
@@ -69,13 +70,7 @@ pub fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) -> Sender
                                 SqlType::Int(int) => int.to_string(),
                                 SqlType::Decimal(dec) => dec.to_string(),
                                 SqlType::Varchar(varchar) => String::from(varchar.clone()),
-                                SqlType::Bool(b) => {
-                                    String::from(if b.clone() {
-                                        "1"
-                                    } else {
-                                        "0"
-                                    })
-                                }
+                                SqlType::Bool(b) => String::from(if b.clone() { "1" } else { "0" }),
                                 SqlType::Null => String::from("NULL"),
                             } + ","
                         });
@@ -135,8 +130,8 @@ fn main() {
         .get_matches();
 
     let arguments = Arguments {
-        input: config.value_of("input").unwrap(),
-        output: config.value_of("output").unwrap(),
+        input: String::from(config.value_of("input").unwrap()),
+        output: String::from(config.value_of("output").unwrap()),
         maximum_rows: config.value_of("rows").unwrap().parse().unwrap(),
         no_ignore: if let Some(_) = config.value_of("no-ignore") {
             true
@@ -154,10 +149,10 @@ fn main() {
     let relation_members = new_thread::<RelationMember>(arguments.clone());
     let ref_tags = new_thread::<UsedTag>(arguments.clone());
 
-    let buf = Vec::new();
     let mut used_tags: Vec<&str> = vec![];
     let mut last_ref_id: i64 = 0;
     let mut last_ref_type: &str = "node";
+    let mut buf = vec![];
 
     match result {
         Ok(mut reader) => {
@@ -167,17 +162,18 @@ fn main() {
             loop {
                 match reader.read_event(&mut buf) {
                     Ok(Event::Start(e)) => {
-                        let mut attrs: HashMap<&str, &str> = HashMap::new();
                         let name = e.name();
-                        for attribute in e.attributes() {
-                            let attribute = attribute.unwrap();
-                            let key = attribute.key;
-                            let value = attribute.value;
-                            attrs.insert(
-                                unsafe { str::from_utf8_unchecked(key.as_ref()) },
-                                unsafe { str::from_utf8_unchecked(value.as_ref()) },
-                            );
-                        }
+                        let attrs: HashMap<&str, &str> = e
+                            .attributes()
+                            .map(|a| {
+                                let attr = a.unwrap();
+
+                                (str::from_utf8(attr.key).unwrap(), unsafe {
+                                    std::str::from_utf8_unchecked(attr.value.as_ref())
+                                })
+                            })
+                            .collect();
+
                         match name {
                             b"node" => {
                                 let mut node: Node = Node {
@@ -193,7 +189,7 @@ fn main() {
                                             "lon" => {
                                                 node.lng = value.parse::<f32>().unwrap();
                                             }
-                                            _=>{}
+                                            _ => {}
                                         }
                                     }
                                 }
@@ -207,7 +203,6 @@ fn main() {
                                 let mut way: Way = Way {
                                     ..Default::default()
                                 };
-
                                 for (k, v) in attrs {
                                     way.main_info.set_attribute(k, v);
                                 }
@@ -221,7 +216,6 @@ fn main() {
                                 let mut relation: Relation = Relation {
                                     ..Default::default()
                                 };
-
                                 for (k, v) in attrs {
                                     relation.main_info.set_attribute(k, v);
                                 }
@@ -232,24 +226,25 @@ fn main() {
                                 relations.send(ThreadSignal::Write(relation));
                             }
                             b"tag" => {
-                                let k = attrs.get("k").expect("Can not read key attribute.");
-                                let v = attrs.get("v").expect("Can not read value attribute.");
+                                let k =
+                                    attrs.get("k").expect("Can not read key attribute.").clone();
+                                let v = attrs
+                                    .get("v")
+                                    .expect("Can not read value attribute.")
+                                    .clone();
 
-                                let tag_index = used_tags.iter().position(|t| &t == &k);
+                                let tag_index = used_tags.iter().position(|t| t == &k);
 
                                 let tag_id = match tag_index {
                                     None => {
                                         let id = used_tags.len() as i16;
-                                        let in_tag = Tag {
-                                            id,
-                                            name: k,
-                                        };
+                                        let in_tag = Tag { id, name: k };
 
                                         used_tags.push(k);
                                         tags.send(ThreadSignal::Write(in_tag));
                                         id
                                     }
-                                    Some(index) => {index as i16}
+                                    Some(index) => index as i16,
                                 };
 
                                 ref_tags.send(ThreadSignal::Write(UsedTag {
@@ -270,17 +265,20 @@ fn main() {
                                 }));
                             }
                             b"member" => {
-                                let ref_attr = attrs.get("ref").expect("Can not read ref attr from member tag.");
-                                let type_attr = attrs.get("type").expect("Can not read type attr from member tag.");
+                                let ref_attr = attrs
+                                    .get("ref")
+                                    .expect("Can not read ref attr from member tag.");
+                                let type_attr = attrs
+                                    .get("type")
+                                    .expect("Can not read type attr from member tag.");
                                 let role_attr = attrs.get("role").unwrap_or(&"");
 
                                 relation_members.send(ThreadSignal::Write(RelationMember {
                                     ref_id: ref_attr.parse::<i64>().unwrap(),
                                     ref_type: type_attr,
                                     role: role_attr,
-                                    relation_id: last_ref_id
+                                    relation_id: last_ref_id,
                                 }));
-                                
                             }
                             _ => (),
                         }
