@@ -96,3 +96,7 @@ pub struct UsedTag {
     pub ref_id: i64,
     pub ref_type:&'static str
 }
+
+pub struct Node {
+
+}
