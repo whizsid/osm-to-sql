@@ -1,13 +1,14 @@
+use clap::{App, Arg};
 use quick_xml::events::Event;
 use quick_xml::Reader;
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str;
-use std::thread;
-use clap::{App, Arg};
-use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender};
+use std::thread;
+use std::time::Duration;
 
 pub mod models;
 use models::*;
@@ -17,7 +18,7 @@ enum ThreadSignal<T: Model> {
     Stop,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Arguments {
     pub input: String,
     pub output: String,
@@ -25,7 +26,7 @@ pub struct Arguments {
     pub no_ignore: bool,
 }
 
-pub fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) -> Sender<ThreadSignal<T>> {
+fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) -> Sender<ThreadSignal<T>> {
     let (snd, rcv) = channel::<ThreadSignal<T>>();
     thread::spawn(move || {
         let mut count = 0;
@@ -42,40 +43,57 @@ pub fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) -> Sender
                 T::get_table_name()
             ));
 
-        write!(&file, "\n{}", T::get_create_table_query());
+        let w = write!(&file, "{}", T::get_create_table_query());
+        w.unwrap();
 
         loop {
-            match rcv.recv() {
+            match rcv.recv_timeout(Duration::from_secs(1)) {
                 Ok(result) => match result {
                     ThreadSignal::Write(entry) => {
                         count += 1;
                         let data_set = entry.get_data_set();
-                        if count >= arguments.maximum_rows {
-                            let columns = data_set.keys().fold(String::new(), |a, b| a + b + ",");
-                            let columns = columns.trim_end_matches(",");
-                            write!(
+                        let columns = T::get_columns();
+                        if count >= arguments.maximum_rows || count == 1 {
+                            let columns_str =
+                                columns.iter().fold(String::new(), |a, b| a + b + ",");
+                            let columns_str = columns_str.trim_end_matches(",");
+                            let w = write!(
                                 &file,
                                 ";\n\nINSERT {} INTO {} ({}) VALUES ",
                                 if arguments.no_ignore { "" } else { "IGNORE" },
                                 T::get_table_name(),
-                                columns
+                                columns_str
                             );
+                            w.unwrap();
                         } else {
-                            write!(&file, ",");
+                            let w = write!(&file, ",");
+                            w.unwrap()
                         }
 
-                        let values = data_set.values().fold(String::new(), |a, b| {
-                            a + &match b {
+                        let mut values = String::new();
+                        for (i, column) in columns.iter().enumerate() {
+                            if i != 0 {
+                                values += ","
+                            }
+
+                            let value = data_set.get(column).unwrap_or(&SqlType::Null);
+
+                            values += &match value {
                                 SqlType::BigInt(big_int) => big_int.to_string(),
                                 SqlType::Int(int) => int.to_string(),
                                 SqlType::Decimal(dec) => dec.to_string(),
-                                SqlType::Varchar(varchar) => String::from(varchar.clone()),
+                                SqlType::Varchar(varchar) => {
+                                    let new_varchar = String::from("\"") + varchar;
+                                    let new_varchar = new_varchar + &String::from("\"");
+                                    new_varchar
+                                }
                                 SqlType::Bool(b) => String::from(if b.clone() { "1" } else { "0" }),
                                 SqlType::Null => String::from("NULL"),
-                            } + ","
-                        });
-                        let values = values.trim_end_matches(",");
-                        write!(&file, "({})", values);
+                            };
+                        }
+
+                        let w = write!(&file, "({})", values);
+                        w.unwrap()
                     }
                     ThreadSignal::Stop => {
                         break;
@@ -149,7 +167,7 @@ fn main() {
     let relation_members = new_thread::<RelationMember>(arguments.clone());
     let ref_tags = new_thread::<UsedTag>(arguments.clone());
 
-    let mut used_tags: Vec<&str> = vec![];
+    let mut used_tags: Vec<String> = vec![];
     let mut last_ref_id: i64 = 0;
     let mut last_ref_type: &str = "node";
     let mut buf = vec![];
@@ -163,14 +181,13 @@ fn main() {
                 match reader.read_event(&mut buf) {
                     Ok(Event::Start(e)) => {
                         let name = e.name();
-                        let attrs: HashMap<&str, &str> = e
+                        let attrs: HashMap<String, String> = e
                             .attributes()
                             .map(|a| {
                                 let attr = a.unwrap();
+                                let value = String::from_utf8(attr.value.to_vec()).unwrap();
 
-                                (str::from_utf8(attr.key).unwrap(), unsafe {
-                                    std::str::from_utf8_unchecked(attr.value.as_ref())
-                                })
+                                (str::from_utf8(attr.key).unwrap().to_string(), value)
                             })
                             .collect();
 
@@ -181,8 +198,8 @@ fn main() {
                                 };
 
                                 for (key, value) in attrs {
-                                    if !node.main_info.set_attribute(key, value) {
-                                        match key {
+                                    if !node.main_info.set_attribute(key.clone(), value.clone()) {
+                                        match key.as_str() {
                                             "lat" => {
                                                 node.lat = value.parse::<f32>().unwrap();
                                             }
@@ -197,7 +214,7 @@ fn main() {
                                 last_ref_id = node.main_info.id;
                                 last_ref_type = "node";
 
-                                nodes.send(ThreadSignal::Write(node));
+                                nodes.send(ThreadSignal::Write(node)).unwrap();
                             }
                             b"way" => {
                                 let mut way: Way = Way {
@@ -210,7 +227,7 @@ fn main() {
                                 last_ref_id = way.main_info.id;
                                 last_ref_type = "way";
 
-                                ways.send(ThreadSignal::Write(way));
+                                ways.send(ThreadSignal::Write(way)).unwrap();
                             }
                             b"relation" => {
                                 let mut relation: Relation = Relation {
@@ -223,46 +240,49 @@ fn main() {
                                 last_ref_id = relation.main_info.id;
                                 last_ref_type = "relation";
 
-                                relations.send(ThreadSignal::Write(relation));
+                                relations.send(ThreadSignal::Write(relation)).unwrap();
                             }
                             b"tag" => {
-                                let k =
-                                    attrs.get("k").expect("Can not read key attribute.").clone();
-                                let v = attrs
-                                    .get("v")
-                                    .expect("Can not read value attribute.")
-                                    .clone();
+                                let k = String::from(attrs.get("k").unwrap());
+                                let v = String::from(attrs.get("v").unwrap());
 
                                 let tag_index = used_tags.iter().position(|t| t == &k);
 
                                 let tag_id = match tag_index {
                                     None => {
                                         let id = used_tags.len() as i16;
-                                        let in_tag = Tag { id, name: k };
+                                        let in_tag = Tag {
+                                            id,
+                                            name: k.clone(),
+                                        };
 
-                                        used_tags.push(k);
-                                        tags.send(ThreadSignal::Write(in_tag));
+                                        used_tags.push(k.clone());
+                                        tags.send(ThreadSignal::Write(in_tag)).unwrap();
                                         id
                                     }
                                     Some(index) => index as i16,
                                 };
 
-                                ref_tags.send(ThreadSignal::Write(UsedTag {
-                                    tag_id,
-                                    value: v,
-                                    ref_id: last_ref_id,
-                                    ref_type: last_ref_type,
-                                }));
+                                ref_tags
+                                    .send(ThreadSignal::Write(UsedTag {
+                                        tag_id,
+                                        value: v,
+                                        ref_id: last_ref_id,
+                                        ref_type: String::from(last_ref_type),
+                                    }))
+                                    .unwrap();
                             }
                             b"nd" => {
                                 let ref_attr = attrs
                                     .get("ref")
                                     .expect("Can not read the ref attribute from nd tag.");
 
-                                way_nodes.send(ThreadSignal::Write(WayNode {
-                                    way_id: last_ref_id,
-                                    node_id: ref_attr.parse::<i64>().unwrap(),
-                                }));
+                                way_nodes
+                                    .send(ThreadSignal::Write(WayNode {
+                                        way_id: last_ref_id,
+                                        node_id: ref_attr.parse::<i64>().unwrap(),
+                                    }))
+                                    .unwrap();
                             }
                             b"member" => {
                                 let ref_attr = attrs
@@ -271,14 +291,16 @@ fn main() {
                                 let type_attr = attrs
                                     .get("type")
                                     .expect("Can not read type attr from member tag.");
-                                let role_attr = attrs.get("role").unwrap_or(&"");
+                                let role_attr = attrs.get("role").unwrap();
 
-                                relation_members.send(ThreadSignal::Write(RelationMember {
-                                    ref_id: ref_attr.parse::<i64>().unwrap(),
-                                    ref_type: type_attr,
-                                    role: role_attr,
-                                    relation_id: last_ref_id,
-                                }));
+                                relation_members
+                                    .send(ThreadSignal::Write(RelationMember {
+                                        ref_id: ref_attr.parse::<i64>().unwrap(),
+                                        ref_type: type_attr.clone(),
+                                        role: role_attr.clone(),
+                                        relation_id: last_ref_id,
+                                    }))
+                                    .unwrap();
                             }
                             _ => (),
                         }
@@ -292,4 +314,12 @@ fn main() {
         }
         Err(e) => panic!("Invalid file :- {:?}", e),
     }
+
+    nodes.send(ThreadSignal::Stop).unwrap();
+    tags.send(ThreadSignal::Stop).unwrap();
+    ways.send(ThreadSignal::Stop).unwrap();
+    way_nodes.send(ThreadSignal::Stop).unwrap();
+    relations.send(ThreadSignal::Stop).unwrap();
+    relation_members.send(ThreadSignal::Stop).unwrap();
+    ref_tags.send(ThreadSignal::Stop).unwrap();
 }

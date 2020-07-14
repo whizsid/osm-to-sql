@@ -5,8 +5,8 @@ pub struct MainInfo {
     pub changeset: i32,
     pub id: i64,
     pub version: i16,
-    pub timestamp: &'static str,
-    pub user: &'static str,
+    pub timestamp: String,
+    pub user: String,
     pub uid: i32,
     pub visible: bool,
 }
@@ -17,16 +17,16 @@ impl MainInfo {
         data_set.insert("changeset", SqlType::Int(self.changeset));
         data_set.insert("id", SqlType::BigInt(self.id));
         data_set.insert("version", SqlType::Int(self.version as i32));
-        data_set.insert("timestamp", SqlType::Varchar(self.timestamp));
-        data_set.insert("user", SqlType::Varchar(self.user));
+        data_set.insert("timestamp", SqlType::Varchar(&self.timestamp));
+        data_set.insert("user", SqlType::Varchar(&self.user));
         data_set.insert("uid", SqlType::Int(self.uid));
         data_set.insert("visible", SqlType::Bool(self.visible));
 
         data_set
     }
 
-    pub fn set_attribute(&mut self, name: &str, value: &str) -> bool {
-        match name {
+    pub fn set_attribute(&mut self, name: String, value: String) -> bool {
+        match name.as_str() {
             "id" => {
                 self.id = value.parse::<i64>().unwrap();
                 true
@@ -40,11 +40,11 @@ impl MainInfo {
                 true
             }
             "timestamp" => {
-                self.timestamp = &String::from(value);
+                self.timestamp = String::from(value);
                 true
             }
             "user" => {
-                self.user = &String::from(value);
+                self.user = String::from(value);
                 true
             }
             "uid" => {
@@ -63,14 +63,14 @@ impl MainInfo {
 #[derive(Default)]
 pub struct Tag {
     pub id: i16,
-    pub name: &'static str,
+    pub name: String,
 }
 
 impl Model for Tag {
     fn get_data_set<'a>(&'a self) -> HashMap<&'a str, SqlType> {
         let mut hash_map: HashMap<&str, SqlType> = HashMap::new();
         hash_map.insert("id", SqlType::Int(self.id as i32));
-        hash_map.insert("name", SqlType::Varchar(self.name));
+        hash_map.insert("name", SqlType::Varchar(self.name.as_str()));
 
         hash_map
     }
@@ -86,14 +86,18 @@ impl Model for Tag {
             CONSTRAINT tags_pk PRIMARY KEY(id)\
         )"
     }
+
+    fn get_columns() -> Vec<&'static str> {
+        vec!["id", "name"]
+    }
 }
 
 #[derive(Default)]
 pub struct UsedTag {
     pub tag_id: i16,
-    pub value: &'static str,
+    pub value: String,
     pub ref_id: i64,
-    pub ref_type: &'static str,
+    pub ref_type: String,
 }
 
 impl Model for UsedTag {
@@ -101,7 +105,7 @@ impl Model for UsedTag {
         let mut hash_map: HashMap<&str, SqlType> = HashMap::new();
         hash_map.insert("tag_id", SqlType::Int(self.tag_id as i32));
         hash_map.insert(
-            match self.ref_type {
+            match self.ref_type.as_str() {
                 "relation" => "relation_id",
                 "way" => "way_id",
                 "node" => "node_id",
@@ -130,6 +134,16 @@ impl Model for UsedTag {
             CONSTRAINT  ref_tags_relations_fk FOREIGN KEY(relation_id) REFERENCES relations(id),\
             CONSTRAINT  ref_tags_ways_fk FOREIGN KEY(way_id) REFERENCES ways(id)\
         )"
+    }
+
+    fn get_columns() -> Vec<&'static str> {
+        vec![
+            "tag_id",
+            "node_id",
+            "relation_id",
+            "way_id",
+            "value",
+        ]
     }
 }
 
@@ -162,9 +176,23 @@ impl Model for Node {
              user VARCHAR(256),\
              uid INTEGER,\
              visible TINYINT(2),\
-             date_time VARCHAR(256),\
+             timestamp VARCHAR(256),\
              CONSTRAINT nodes_pk PRIMARY KEY(id)\
         )"
+    }
+
+    fn get_columns() -> Vec<&'static str> {
+        vec![
+            "id",
+            "lat",
+            "lng",
+            "version",
+            "changeset",
+            "user",
+            "uid",
+            "visible",
+            "timestamp",
+        ]
     }
 }
 
@@ -190,18 +218,30 @@ impl Model for Relation {
              user VARCHAR(256),\
              uid INTEGER,\
              visible TINYINT(2),\
-             date_time VARCHAR(256),\
+             timestamp VARCHAR(256),\
              CONSTRAINT relations_pk PRIMARY KEY(id)\
              )"
+    }
+
+    fn get_columns() -> Vec<&'static str> {
+        vec![
+            "id",
+            "version",
+            "changeset",
+            "user",
+            "uid",
+            "visible",
+            "timestamp",
+        ]
     }
 }
 
 #[derive(Default)]
 pub struct RelationMember {
-    pub ref_type: &'static str,
+    pub ref_type: String,
     pub ref_id: i64,
     pub relation_id: i64,
-    pub role: &'static str,
+    pub role: String,
 }
 
 impl Model for RelationMember {
@@ -209,9 +249,9 @@ impl Model for RelationMember {
         let mut hash_map: HashMap<&str, SqlType> = HashMap::new();
 
         hash_map.insert("relation_id", SqlType::BigInt(self.relation_id));
-        hash_map.insert("role", SqlType::Varchar(self.role));
+        hash_map.insert("role", SqlType::Varchar(self.role.as_str()));
         hash_map.insert(
-            match self.ref_type {
+            match self.ref_type.as_str() {
                 "node" => "node_id",
                 "way" => "way_id",
                 "relation" => "sub_relation_id",
@@ -242,6 +282,16 @@ impl Model for RelationMember {
             CONSTRAINT  relation_members_sub_relations_fk FOREIGN KEY(sub_relation_id) REFERENCES relations(id)\
         )"
     }
+
+    fn get_columns() -> Vec<&'static str> {
+        vec![
+            "relation_id",
+            "node_id",
+            "way_id",
+            "sub_relation_id",
+            "role",
+        ]
+    }
 }
 
 #[derive(Default)]
@@ -266,9 +316,21 @@ impl Model for Way {
              user VARCHAR(256),\
              uid INTEGER,\
              visible TINYINT(2),\
-             date_time VARCHAR(256),\
+             timestamp VARCHAR(256),\
              CONSTRAINT ways_pk PRIMARY KEY(id)\
         )"
+    }
+
+    fn get_columns() -> Vec<&'static str> {
+        vec![
+            "id",
+            "version",
+            "changeset",
+            "user",
+            "uid",
+            "visible",
+            "timestamp",
+        ]
     }
 }
 
@@ -301,8 +363,13 @@ impl Model for WayNode {
             CONSTRAINT  way_nodes_ways_fk FOREIGN KEY(way_id) REFERENCES ways(id)\
         )"
     }
+
+    fn get_columns() -> Vec<&'static str> {
+        vec!["way_id", "node_id"]
+    }
 }
 
+#[derive(Debug,Copy,Clone)]
 pub enum SqlType<'a> {
     BigInt(i64),
     Int(i32),
@@ -318,4 +385,6 @@ pub trait Model {
     fn get_table_name() -> &'static str;
 
     fn get_create_table_query() -> &'static str;
+
+    fn get_columns() -> Vec<&'static str>;
 }
