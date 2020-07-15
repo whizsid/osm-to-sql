@@ -1,5 +1,3 @@
-#!/usr/bin/bash
-
 OSM_FILE_DOWNLOAD_URL="https://download.geofabrik.de/asia/bhutan-latest.osm.bz2" 
 TEST_DATA_DIR=test_data
 OSM_FILE_ARCHIVE_NAME=bhutan-latest.osm.bz2
