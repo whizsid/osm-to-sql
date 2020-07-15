@@ -81,7 +81,7 @@ impl Model for Tag {
 
     fn get_create_table_query() -> &'static str {
         "CREATE TABLE tags(\
-            id INETGER,\
+            id INTEGER,\
             name VARCHAR(256),
             CONSTRAINT tags_pk PRIMARY KEY(id)\
         )"

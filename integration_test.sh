@@ -72,3 +72,11 @@ assert_count "nd" "way_nodes"
 echo "INFO: Testing ref_tags count."
 assert_count "tag" "ref_tags"
 
+if (( $PASSED == $TOTAL )); then
+	echo "INFO: Passed all tests."
+	exit 0;
+else
+	echo "ERROR: Passed only ($PASSED/$TOTAL) test cases.";
+	exit 1;
+fi
+
