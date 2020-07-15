@@ -23,15 +23,15 @@ yaourt -S osm-to-sql
 
 ### Debian Based Distros
 
-Download the `.deb` file from [here](https://github.com/whizsid/osm-to-sql/releases/download/0.1.2/osm-to-sql_0.1.2_amd64.deb) and install it using `dpkg`.
+Download the `.deb` file from [here](https://github.com/whizsid/osm-to-sql/releases/download/0.1.3/osm-to-sql_0.1.3_amd64.deb) and install it using `dpkg`.
 
 ```
-dpkg -i ./osm-to-sql_0.1.1_amd64.deb
+dpkg -i ./osm-to-sql_0.1.3_amd64.deb
 ```
 
 ## Other Distros
 
-Download the standalone binary file from [here](https://github.com/whizsid/osm-to-sql/releases/download/0.1.2/osm-to-sql) and run it.
+Download the standalone binary file from [here](https://github.com/whizsid/osm-to-sql/releases/download/0.1.3/osm-to-sql) and run it.
 
 ## Usage
 
