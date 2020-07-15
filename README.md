@@ -44,7 +44,6 @@ Usage:
 
 OPTIONS:
     -i        Input open street map file in XML format.
-    -l        Default varchar length to using in table creation. [250]
     -d        Output directory to save output sql files.
     -r        Maximum rows per one SQL insert query. [400]
     -h        Prints help information
