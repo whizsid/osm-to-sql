@@ -1,286 +1,339 @@
-pub mod node;
-use node::Node;
-
-pub mod way;
-use way::Way;
-use way::WayNode;
-
-pub mod relation;
-use relation::Relation;
-use relation::RelationMember;
-
-pub mod main_info;
-use main_info::Attr;
-use main_info::Tag;
-use main_info::UsedTag;
-
-pub mod argument;
-use argument::Arguments;
-
+use clap::{App, Arg};
 use quick_xml::events::Event;
 use quick_xml::Reader;
-
-use std::env;
-use std::path::Path;
+use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+use std::path::{Path, PathBuf};
 use std::str;
+use std::sync::mpsc::{channel, Sender};
+use std::thread::spawn;
+use std::thread::JoinHandle;
+use std::time::Duration;
 
-pub mod sql_file;
-use sql_file::SqlFile;
+pub mod models;
+use models::*;
+
+enum ThreadSignal<T: Model> {
+    Write(T),
+    Stop,
+}
+
+#[derive(Clone, Debug)]
+pub struct Arguments {
+    pub input: String,
+    pub output: String,
+    pub maximum_rows: i32,
+    pub no_ignore: bool,
+}
+
+fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) ->( JoinHandle<()>,Sender<ThreadSignal<T>>) {
+    let (snd, rcv) = channel::<ThreadSignal<T>>();
+    let handle = spawn(move || {
+        let mut count = 0;
+        let file_name = format!("{}.sql", T::get_table_name());
+        let file_path = PathBuf::from(arguments.output).join(file_name);
+
+        let file = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create_new(true)
+            .open(file_path)
+            .expect(&format!(
+                "Can not open the file {}. Already exist or permission denied",
+                T::get_table_name()
+            ));
+
+        let w = write!(&file, "{}", T::get_create_table_query());
+        w.unwrap();
+
+        loop {
+            match rcv.recv_timeout(Duration::from_secs(1)) {
+                Ok(result) => match result {
+                    ThreadSignal::Write(entry) => {
+                        count += 1;
+
+                        let data_set = entry.get_data_set();
+                        let columns = T::get_columns();
+                        if count > arguments.maximum_rows || count == 1 {
+                            let columns_str =
+                                columns.iter().fold(String::new(), |a, b| a + b + ",");
+                            let columns_str = columns_str.trim_end_matches(",");
+                            let w = write!(
+                                &file,
+                                ";\nINSERT {} INTO {} ({}) VALUES ",
+                                if arguments.no_ignore { "" } else { "IGNORE" },
+                                T::get_table_name(),
+                                columns_str
+                            );
+                            w.unwrap();
+
+                            if count>arguments.maximum_rows {
+                                count = 1;
+                            }
+
+                        } else {
+                            let w = write!(&file, ",");
+                            w.unwrap()
+                        }
+
+                        let mut values = String::new();
+                        for (i, column) in columns.iter().enumerate() {
+                            if i != 0 {
+                                values += ","
+                            }
+
+                            let value = data_set.get(column).unwrap_or(&SqlType::Null);
+                            values += &match value {
+                                SqlType::BigInt(big_int) => big_int.to_string(),
+                                SqlType::Int(int) => int.to_string(),
+                                SqlType::Decimal(dec) => dec.to_string(),
+                                SqlType::Varchar(varchar) => {
+                                    let new_varchar = String::from("\"") + varchar;
+                                    let new_varchar = new_varchar + &String::from("\"");
+                                    new_varchar
+                                }
+                                SqlType::Bool(b) => String::from(if b.clone() { "1" } else { "0" }),
+                                SqlType::Null => String::from("NULL"),
+                            };
+                        }
+
+                        let w = write!(&file, "({})", values);
+                        w.unwrap()
+                    }
+                    ThreadSignal::Stop => {
+                        break;
+                    }
+                },
+                Err(_) => {}
+            }
+        }
+    });
+
+    (handle,snd)
+}
 
 fn main() {
+    let config = App::new("OSM-to-SQL")
+        .version("0.1.3")
+        .author("WhizSid <whizsid@aol.com>")
+        .about("Converting open street map files to SQL files with relations.")
+        .arg(
+            Arg::with_name("input")
+                .short("i")
+                .long("input")
+                .value_name("FILE")
+                .required(true)
+                .takes_value(true)
+                .help("Sets the input OSM XML file."),
+        )
+        .arg(
+            Arg::with_name("output")
+                .short("d")
+                .long("directory")
+                .value_name("DIRECTORY")
+                .required(true)
+                .takes_value(true)
+                .help("Output directory. This directory should be an empty directory."),
+        )
+        .arg(
+            Arg::with_name("rows")
+                .short("r")
+                .long("rows")
+                .value_name("NUMBER")
+                .takes_value(true)
+                .default_value("400")
+                .help("Maximum rows per one SQL insert query. Default is 400"),
+        )
+        .arg(
+            Arg::with_name("no-ignore")
+                .short("g")
+                .long("no-ignore")
+                .help("Do not use INSERT IGNORE queries."),
+        )
+        .get_matches();
 
-    let args: Vec<_> = env::args().collect();
+    let arguments = Arguments {
+        input: String::from(config.value_of("input").unwrap()),
+        output: String::from(config.value_of("output").unwrap()),
+        maximum_rows: config.value_of("rows").unwrap().parse().unwrap(),
+        no_ignore: if let Some(_) = config.value_of("no-ignore") {
+            true
+        } else {
+            false
+        },
+    };
 
-    let formated_arg = Arguments::parse_args(args);
+    let result = Reader::from_file(&Path::new(&arguments.input));
+    let (nodes_handle,nodes) = new_thread::<Node>(arguments.clone());
+    let (tags_handle,tags) = new_thread::<Tag>(arguments.clone());
+    let (ways_handle,ways) = new_thread::<Way>(arguments.clone());
+    let (way_nodes_handle,way_nodes) = new_thread::<WayNode>(arguments.clone());
+    let (relations_handle,relations) = new_thread::<Relation>(arguments.clone());
+    let (relation_members_handle, relation_members) = new_thread::<RelationMember>(arguments.clone());
+    let (ref_tags_handle, ref_tags) = new_thread::<UsedTag>(arguments.clone());
 
-    let result = Reader::from_file(&Path::new(&formated_arg.input_file));
-
-    let mut nodes_table = SqlFile {..SqlFile::new_node_file(formated_arg.clone())};
-    let mut tags_table = SqlFile {..SqlFile::new_tag_file(formated_arg.clone())};
-    let mut ways_table = SqlFile {..SqlFile::new_main_file(formated_arg.clone(),"ways")};
-    let mut way_nodes_table = SqlFile {..SqlFile::new_way_nodes_file(formated_arg.clone())};
-    let mut relations_table = SqlFile {..SqlFile::new_main_file(formated_arg.clone(),"relations")};
-    let mut relation_members_table = SqlFile {..SqlFile::new_relation_members_file(formated_arg.clone())};
-    let mut ref_tags_table = SqlFile {..SqlFile::new_ref_tags_file(formated_arg.clone())};
-
-    // let mut count = 0;
-    let mut buf = Vec::new();
     let mut used_tags: Vec<String> = vec![];
-    let mut last_ref_id: i64 =0;
-    let mut last_ref_type: &str ="node";
+    let mut last_ref_id: i64 = 0;
+    let mut last_ref_type: &str = "node";
+    let mut buf = vec![];
 
     match result {
-        Ok(mut reader) =>{ 
+        Ok(mut reader) => {
             // Self closing tags
             reader.expand_empty_elements(true);
 
             loop {
                 match reader.read_event(&mut buf) {
-                    Ok(Event::Start(e)) => match e.name() {
-                        b"node" => {
-                            let mut node:Node = Node {..Default::default()};
+                    Ok(Event::Start(e)) => {
+                        let name = e.name();
+                        let attrs: HashMap<String, String> = e
+                            .attributes()
+                            .map(|a| {
+                                let attr = a.unwrap();
+                                let value = String::from_utf8(attr.value.to_vec()).unwrap();
 
-                            e.attributes().for_each(|a| match a {
-                                Ok(attr)=>{
-                                    
-                                    let formated_attr = Attr::from_quick_xml(attr);
-                                    let value = formated_attr.value.clone();
-                                    let name = formated_attr.name.clone();
+                                (str::from_utf8(attr.key).unwrap().to_string(), value)
+                            })
+                            .collect();
 
-                                    if !node.main_info.set_attribute(formated_attr) {
-                                        match name.as_ref() {
-                                            "lat"=> node.lat = value.parse::<f32>().unwrap(),
-                                            "lon"=> node.lng = value.parse::<f32>().unwrap(),
-                                            _=>(),
+                        match name {
+                            b"node" => {
+                                let mut node: Node = Node {
+                                    ..Default::default()
+                                };
+
+                                for (key, value) in attrs {
+                                    if !node.main_info.set_attribute(key.clone(), value.clone()) {
+                                        match key.as_str() {
+                                            "lat" => {
+                                                node.lat = value.parse::<f32>().unwrap();
+                                            }
+                                            "lon" => {
+                                                node.lng = value.parse::<f32>().unwrap();
+                                            }
+                                            _ => {}
                                         }
                                     }
-                                },
-                                Err(e)=>panic!("{:?}",e)
-                            });
+                                }
 
-                            last_ref_id = node.main_info.id;
-                            last_ref_type = "node";
+                                last_ref_id = node.main_info.id;
+                                last_ref_type = "node";
 
-                            nodes_table.insert_to_node_file(node);
-                        },
-                        b"way"=>{
-                            let mut way:Way = Way {..Default::default()};
-
-                            e.attributes().for_each(|a| match a {
-                                Ok(attr)=>{
-                                    way.main_info.set_attribute(Attr::from_quick_xml(attr));
-                                },
-                                Err(e)=>panic!("{:?}",e)
-                            });
-
-                            last_ref_id = way.main_info.id;
-                            last_ref_type = "way";
-
-                            ways_table.insert_to_main_file("ways", way.main_info);
-                        },
-                        b"relation"=>{
-                            let mut relation:Relation = Relation {..Default::default()};
-
-                            e.attributes().for_each(|a| match a {
-                                Ok(attr)=>{
-                                    relation.main_info.set_attribute(Attr::from_quick_xml(attr));
-                                },
-                                Err(e)=>panic!("{:?}",e)
-                            });
-
-                            last_ref_id = relation.main_info.id;
-                            last_ref_type = "relation";
-
-                            relations_table.insert_to_main_file("relations", relation.main_info);
-                        },
-                        b"tag"=>{
-                            let tag:Tag;
-
-                            let key_attribute_result = e.attributes().find(|a| match a {
-                                Ok(attr)=>{
-                                    String::from_utf8_lossy(attr.key)  =="k"
-                                },
-                                Err(e)=>panic!("{:?}",e)
-                            });
-
-                            let value_attribute_result = e.attributes().find(|a| match a {
-                                Ok(attr)=>{
-                                    String::from_utf8_lossy(attr.key)  =="v"
-                                },
-                                Err(e)=>panic!("{:?}",e)
-                            });
-
-                            match key_attribute_result {
-                                Some(result) => {
-                                    match result {
-                                        Ok(key_attribute)=>{
-                                            
-                                            match value_attribute_result {
-                                                Some(v_result)=>{
-                                                    match v_result {
-                                                        Ok(value_attribute)=>{
-                                                            let k_attr = Attr::from_quick_xml(key_attribute);
-                                                            let v_attr = Attr::from_quick_xml(value_attribute);
-                                                            
-
-                                                            tag = match used_tags.iter().position(|t| &t==&&k_attr.value) {
-                                                                None =>{
-
-                                                                    let inner_tag = Tag {
-                                                                        id: used_tags.len() as i16,
-                                                                        name: k_attr.value.clone()
-                                                                    };
-
-                                                                    used_tags.push(k_attr.value.clone());
-
-                                                                    tags_table.insert_to_tag_file(&inner_tag);
-
-                                                                    inner_tag
-                                                                },
-                                                                Some(num)=>{
-                                                                    let inner_tag = Tag {
-                                                                        id: num as i16,
-                                                                        name: k_attr.value.clone()
-                                                                    };
-
-                                                                    inner_tag
-                                                                }
-                                                            };
-
-                                                            ref_tags_table.insert_to_ref_tags_file(UsedTag {
-                                                                ref_id: last_ref_id,
-                                                                tag: tag,
-                                                                value: v_attr.value,
-                                                                ref_type: last_ref_type
-                                                            });
-
-                                                        },
-                                                        Err(e)=>panic!("Can not read tag value attribute:{:?}",e)
-                                                    }
-                                                },
-                                                None=>()
-                                            }
-
-                                        },
-                                        Err(e)=>panic!("Can not read tag key attribute: {:?}",e)
-                                    };
-                                },
-                                None => (),
-                            };
-                        },
-                        b"nd"=>{
-                            let ref_attribute_option = e.attributes().find(|a| match a {
-                                Ok(attr)=>{
-                                    String::from_utf8_lossy(attr.key)=="ref"
-                                },
-                                Err(e)=>panic!("Can not read ref attribute of nd tag:{:?}",e)
-                            });
-
-                            match ref_attribute_option {
-                                Some(ref_attribute_result)=>{
-                                    match ref_attribute_result {
-                                        Ok(ref_attribute)=>{
-                                            let attr = Attr::from_quick_xml(ref_attribute);
-
-                                            way_nodes_table.insert_to_way_nodes_file(WayNode {
-                                                way_id:last_ref_id,
-                                                node_id: attr.value.parse::<i64>().unwrap()
-                                            })
-                                        },
-                                        Err(e)=>panic!("Error reading ref attribute in nd tag: {:?}",e)
-                                    }
-                                },
-                                None=>panic!("Error reading ref attribute in nd tag!"),
-                            };
-
-
-
-                        },
-                        b"member"=>{
-                            let ref_attribute_option = e.attributes().find(|a| match a {
-                                Ok(attr)=>{
-                                    String::from_utf8_lossy(attr.key)=="ref"
-                                },
-                                Err(e)=>panic!("Can not read ref attribute of nd tag:{:?}",e)
-                            });
-
-                            let type_attribute_option = e.attributes().find(|a| match a {
-                                Ok(attr)=>{
-                                    String::from_utf8_lossy(attr.key)=="type"
-                                },
-                                Err(e)=>panic!("Can not read ref attribute of nd tag:{:?}",e)
-                            });
-
-                            let role_attribute_option = e.attributes().find(|a| match a {
-                                Ok(attr)=>{
-                                    String::from_utf8_lossy(attr.key)=="role"
-                                },
-                                Err(e)=>panic!("Can not read ref attribute of nd tag:{:?}",e)
-                            });
-
-                            match ref_attribute_option {
-                                Some(ref_attribute_result)=>match ref_attribute_result {
-                                    Ok(ref_attribute)=>match type_attribute_option {
-                                        Some(type_attribute_result)=>match type_attribute_result {
-                                            Ok(type_attribute)=>{
-                                                let role = match role_attribute_option {
-                                                    Some(role_attribute_result)=>match role_attribute_result {
-                                                        Ok(role_attribute)=>{
-                                                            Attr::from_quick_xml(role_attribute).value
-                                                        },
-                                                        Err(e)=>panic!("Can not read role attribute in member tag:- {:?}",e)
-                                                    },
-                                                    None=>String::from("")
-                                                };
-
-                                                let ref_attr = Attr::from_quick_xml(type_attribute);
-
-                                                relation_members_table.insert_to_relation_members_file(RelationMember {
-                                                    role:role,
-                                                    ref_type: ref_attr.value,
-                                                    ref_id: Attr::from_quick_xml(ref_attribute).value.parse::<i64>().unwrap(),
-                                                    relation_id: last_ref_id
-                                                })
-                                            },
-                                            Err(e)=>panic!("Can not read type attribute in member tag.,{:?}",e)
-                                        },
-                                        None=>panic!("Can not read type attribute in member tag.")
-                                    },
-                                    Err(e)=>panic!("Can not read ref attribute in member tag.,{:?}",e)
-                                },
-                                None=>panic!("Can not read ref attribute in member tag.")
+                                nodes.send(ThreadSignal::Write(node)).unwrap();
                             }
-                        },
-                        _ => (),
-                    },
+                            b"way" => {
+                                let mut way: Way = Way {
+                                    ..Default::default()
+                                };
+                                for (k, v) in attrs {
+                                    way.main_info.set_attribute(k, v);
+                                }
+
+                                last_ref_id = way.main_info.id;
+                                last_ref_type = "way";
+
+                                ways.send(ThreadSignal::Write(way)).unwrap();
+                            }
+                            b"relation" => {
+                                let mut relation: Relation = Relation {
+                                    ..Default::default()
+                                };
+                                for (k, v) in attrs {
+                                    relation.main_info.set_attribute(k, v);
+                                }
+
+                                last_ref_id = relation.main_info.id;
+                                last_ref_type = "relation";
+
+                                relations.send(ThreadSignal::Write(relation)).unwrap();
+                            }
+                            b"tag" => {
+                                let k = String::from(attrs.get("k").unwrap());
+                                let v = String::from(attrs.get("v").unwrap());
+
+                                let tag_index = used_tags.iter().position(|t| t == &k);
+
+                                let tag_id = match tag_index {
+                                    None => {
+                                        let id = used_tags.len() as i16;
+                                        let in_tag = Tag {
+                                            id,
+                                            name: k.clone(),
+                                        };
+
+                                        used_tags.push(k.clone());
+                                        tags.send(ThreadSignal::Write(in_tag)).unwrap();
+                                        id
+                                    }
+                                    Some(index) => index as i16,
+                                };
+
+                                ref_tags
+                                    .send(ThreadSignal::Write(UsedTag {
+                                        tag_id,
+                                        value: v,
+                                        ref_id: last_ref_id,
+                                        ref_type: String::from(last_ref_type),
+                                    }))
+                                    .unwrap();
+                            }
+                            b"nd" => {
+                                let ref_attr = attrs
+                                    .get("ref")
+                                    .expect("Can not read the ref attribute from nd tag.");
+
+                                way_nodes
+                                    .send(ThreadSignal::Write(WayNode {
+                                        way_id: last_ref_id,
+                                        node_id: ref_attr.parse::<i64>().unwrap(),
+                                    }))
+                                    .unwrap();
+                            }
+                            b"member" => {
+                                let ref_attr = attrs
+                                    .get("ref")
+                                    .expect("Can not read ref attr from member tag.");
+                                let type_attr = attrs
+                                    .get("type")
+                                    .expect("Can not read type attr from member tag.");
+                                let role_attr = attrs.get("role").unwrap();
+
+                                relation_members
+                                    .send(ThreadSignal::Write(RelationMember {
+                                        ref_id: ref_attr.parse::<i64>().unwrap(),
+                                        ref_type: type_attr.clone(),
+                                        role: role_attr.clone(),
+                                        relation_id: last_ref_id,
+                                    }))
+                                    .unwrap();
+                            }
+                            _ => (),
+                        }
+                    }
                     Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
                     Ok(Event::Eof) => break,
                     _ => (),
                 }
                 buf.clear();
             }
-        },
+        }
         Err(e) => panic!("Invalid file :- {:?}", e),
     }
 
+    nodes.send(ThreadSignal::Stop).unwrap();
+    tags.send(ThreadSignal::Stop).unwrap();
+    ways.send(ThreadSignal::Stop).unwrap();
+    way_nodes.send(ThreadSignal::Stop).unwrap();
+    relations.send(ThreadSignal::Stop).unwrap();
+    relation_members.send(ThreadSignal::Stop).unwrap();
+    ref_tags.send(ThreadSignal::Stop).unwrap();
+
+    nodes_handle.join().unwrap();
+    tags_handle.join().unwrap();
+    ways_handle.join().unwrap();
+    way_nodes_handle.join().unwrap();
+    relations_handle.join().unwrap();
+    relation_members_handle.join().unwrap();
+    ref_tags_handle.join().unwrap();
 }
