@@ -7,7 +7,8 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::mpsc::{channel, Sender};
-use std::thread;
+use std::thread::spawn;
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 pub mod models;
@@ -26,9 +27,9 @@ pub struct Arguments {
     pub no_ignore: bool,
 }
 
-fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) -> Sender<ThreadSignal<T>> {
+fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) ->( JoinHandle<()>,Sender<ThreadSignal<T>>) {
     let (snd, rcv) = channel::<ThreadSignal<T>>();
-    thread::spawn(move || {
+    let handle = spawn(move || {
         let mut count = 0;
         let file_name = format!("{}.sql", T::get_table_name());
         let file_path = PathBuf::from(arguments.output).join(file_name);
@@ -51,20 +52,26 @@ fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) -> Sender<Thr
                 Ok(result) => match result {
                     ThreadSignal::Write(entry) => {
                         count += 1;
+
                         let data_set = entry.get_data_set();
                         let columns = T::get_columns();
-                        if count >= arguments.maximum_rows || count == 1 {
+                        if count > arguments.maximum_rows || count == 1 {
                             let columns_str =
                                 columns.iter().fold(String::new(), |a, b| a + b + ",");
                             let columns_str = columns_str.trim_end_matches(",");
                             let w = write!(
                                 &file,
-                                ";\n\nINSERT {} INTO {} ({}) VALUES ",
+                                ";\nINSERT {} INTO {} ({}) VALUES ",
                                 if arguments.no_ignore { "" } else { "IGNORE" },
                                 T::get_table_name(),
                                 columns_str
                             );
                             w.unwrap();
+
+                            if count>arguments.maximum_rows {
+                                count = 1;
+                            }
+
                         } else {
                             let w = write!(&file, ",");
                             w.unwrap()
@@ -77,7 +84,6 @@ fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) -> Sender<Thr
                             }
 
                             let value = data_set.get(column).unwrap_or(&SqlType::Null);
-
                             values += &match value {
                                 SqlType::BigInt(big_int) => big_int.to_string(),
                                 SqlType::Int(int) => int.to_string(),
@@ -104,7 +110,7 @@ fn new_thread<'a, T: Model + Send + 'static>(arguments: Arguments) -> Sender<Thr
         }
     });
 
-    snd
+    (handle,snd)
 }
 
 fn main() {
@@ -159,13 +165,13 @@ fn main() {
     };
 
     let result = Reader::from_file(&Path::new(&arguments.input));
-    let nodes = new_thread::<Node>(arguments.clone());
-    let tags = new_thread::<Tag>(arguments.clone());
-    let ways = new_thread::<Way>(arguments.clone());
-    let way_nodes = new_thread::<WayNode>(arguments.clone());
-    let relations = new_thread::<Relation>(arguments.clone());
-    let relation_members = new_thread::<RelationMember>(arguments.clone());
-    let ref_tags = new_thread::<UsedTag>(arguments.clone());
+    let (nodes_handle,nodes) = new_thread::<Node>(arguments.clone());
+    let (tags_handle,tags) = new_thread::<Tag>(arguments.clone());
+    let (ways_handle,ways) = new_thread::<Way>(arguments.clone());
+    let (way_nodes_handle,way_nodes) = new_thread::<WayNode>(arguments.clone());
+    let (relations_handle,relations) = new_thread::<Relation>(arguments.clone());
+    let (relation_members_handle, relation_members) = new_thread::<RelationMember>(arguments.clone());
+    let (ref_tags_handle, ref_tags) = new_thread::<UsedTag>(arguments.clone());
 
     let mut used_tags: Vec<String> = vec![];
     let mut last_ref_id: i64 = 0;
@@ -322,4 +328,12 @@ fn main() {
     relations.send(ThreadSignal::Stop).unwrap();
     relation_members.send(ThreadSignal::Stop).unwrap();
     ref_tags.send(ThreadSignal::Stop).unwrap();
+
+    nodes_handle.join().unwrap();
+    tags_handle.join().unwrap();
+    ways_handle.join().unwrap();
+    way_nodes_handle.join().unwrap();
+    relations_handle.join().unwrap();
+    relation_members_handle.join().unwrap();
+    ref_tags_handle.join().unwrap();
 }
